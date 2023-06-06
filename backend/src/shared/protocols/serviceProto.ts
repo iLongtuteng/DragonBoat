@@ -53,7 +53,6 @@ export interface ServiceType {
 }
 
 export const serviceProto: ServiceProto<ServiceType> = {
-    "version": 3,
     "services": [
         {
             "id": 0,
@@ -704,7 +703,7 @@ export const serviceProto: ServiceProto<ServiceType> = {
                     }
                 },
                 {
-                    "id": 2,
+                    "id": 1,
                     "name": "winDis",
                     "type": {
                         "type": "Number"
