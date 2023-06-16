@@ -1,5 +1,5 @@
 {
-  "name": "DragonBoat-backend",
+  "name": "CrossRally-backend",
   "version": "0.1.0",
   "main": "index.js",
   "private": true,
@@ -22,6 +22,7 @@
     "typescript": "^4.9.5"
   },
   "dependencies": {
+    "mongodb": "^5.5.0",
     "tsrpc": "^3.4.12"
   }
 }

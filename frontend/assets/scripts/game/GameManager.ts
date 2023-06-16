@@ -4,28 +4,32 @@ import { WsClient as WsClientBrowser } from "tsrpc-browser";
 import { WsClient as WsClientMiniapp } from "tsrpc-miniapp";
 import { ServiceType, serviceProto } from '../shared/protocols/serviceProto';
 import GameMsgs from './GameMsgs';
-import { RaceType } from '../shared/game/Models/Race';
 import { ClientInput } from '../shared/protocols/client/MsgClientInput';
 import { GameSystemState } from '../shared/game/GameSystem';
+import { SpriteFrame } from 'cc';
 
 export class GameManager {
 
-    private _client: BaseWsClient<ServiceType>;
-    private _raceId: number = 0;
-    private _isInit: boolean = false;
+    public isAdviser: boolean = false;
     public selfPlayerId: number = 0;
-    public difficulty: number = 1;
-    public winDis: number = 40;
     public delayTime: number = 2000;
-    public isHardware: boolean = false;
+    public difficulty: number = 1;
+    public winDis: number = 100;
+    public teamMap: Map<number, number[]> = new Map<number, number[]>();
+    public greenSprite: SpriteFrame = null;
+    public blueSprite: SpriteFrame = null;
+    private _client: BaseWsClient<ServiceType>;
+    private _isInit: boolean = false;
+    private _isLogin: boolean = false;
 
     public initClient(host?: string): void {
         if (this._isInit) {
             return;
         }
 
+        let hostStr = host ? 'ws://' + host + ':3001' : `ws://${location.hostname}:3001`;
         this._client = new (MINIGAME ? WsClientMiniapp : WsClientBrowser)(serviceProto, {
-            server: host ? 'ws://' + host + ':3000' : `ws://${location.hostname}:3000`,
+            server: hostStr,
             json: true,
             // logger: console,
             heartbeat: {
@@ -33,22 +37,22 @@ export class GameManager {
                 timeout: 5000
             }
         });
-        this._client.listenMsg('server/RaceList', msg => {
-            GameMsgs.send<RaceType[]>(GameMsgs.Names.RefreshRaceList, msg.list);
-        });
-        this._client.listenMsg('server/CreatorLeave', msg => {
-            GameMsgs.send<any>(GameMsgs.Names.CreatorLeave);
-        });
-        this._client.listenMsg('server/NotifyReady', msg => {
+        this._client.listenMsg('server/RaceInfo', msg => {
             this.difficulty = msg.difficulty;
             this.winDis = msg.winDis;
+            for (let teamObj of msg.teamObjArr) {
+                this.teamMap.set(teamObj.teamIdx, teamObj.memberArr);
+            }
             GameMsgs.send<any>(GameMsgs.Names.ReadyEnterRace);
         });
         this._client.listenMsg('server/Frame', msg => {
             GameMsgs.send<GameSystemState>(GameMsgs.Names.ApplySystemState, msg.state);
         });
+        this._client.listenMsg('server/RaceResult', msg => {
+            GameMsgs.send<number>(GameMsgs.Names.RaceShowResult, msg.winnerIdx);
+        });
         this._isInit = true;
-        console.log('客户端初始化成功');
+        console.log('客户端初始化成功，连接到：' + hostStr);
     }
 
     public async connect(cb: Function): Promise<void> {
@@ -59,16 +63,20 @@ export class GameManager {
 
         let resConnect = await this._client.connect();
         if (!resConnect.isSucc) {
-            await new Promise(rs => { setTimeout(rs, 2000) })
+            await new Promise(rs => { setTimeout(rs, 2000) });
             return this.connect(cb);
         }
 
-        console.log(`ws://${location.hostname}:3000` + ' 连接成功');
-        await this.login();
+        console.log('连接成功');
         cb && cb();
     }
 
-    public async login(): Promise<void> {
+    public async login(cb: Function): Promise<void> {
+        if (this._isLogin) {
+            cb && cb();
+            return;
+        }
+
         let ret = await this._client.callApi('Login', {});
 
         if (!ret.isSucc) {
@@ -77,28 +85,26 @@ export class GameManager {
         }
 
         this.selfPlayerId = ret.res.id;
-        console.log('登录成功, playerId: ' + this.selfPlayerId);
+        this._isLogin = true;
+        console.log('登录成功, playerId: ' + ret.res.id);
+        cb && cb();
     }
 
-    public async createRace(name: string, teamArr: number[], difficulty: number, teamIdx: number, succCb: Function, errCb: Function): Promise<void> {
-        let ret = await this._client.callApi('CreateRace', {
-            name: name,
-            teamArr: teamArr,
-            difficulty: difficulty
-        });
+    public async updateTeams(teamArr: number[], cb: Function): Promise<void> {
+        let ret = await this._client.callApi('UpdateTeams', {
+            teamArr: teamArr
+        })
 
         if (!ret.isSucc) {
-            errCb && errCb(ret.err.message);
+            console.log(ret.err.message);
             return;
         }
 
-        this._raceId = ret.res.id;
-        await this.joinRace(ret.res.id, teamIdx, succCb, errCb);
+        cb && cb();
     }
 
-    public async joinRace(raceId: number, teamIdx: number, succCb: Function, errCb: Function): Promise<void> {
+    public async joinRace(teamIdx?: number, succCb?: Function, errCb?: Function): Promise<void> {
         let ret = await this._client.callApi('JoinRace', {
-            raceId: raceId,
             teamIdx: teamIdx
         });
 
@@ -110,50 +116,26 @@ export class GameManager {
         succCb && succCb();
     }
 
-    public async getRaceList(): Promise<RaceType[]> {
-        let ret = await this._client.callApi('GetRaceList', {});
-
-        if (!ret.isSucc) {
-            console.log(ret.err.message);
-            return null;
-        }
-
-        return ret.res.list;
-    }
-
-    public async readyRace(cb: Function): Promise<void> {
-        let ret = await this._client.callApi('ReadyRace', {
-            raceId: this._raceId
+    public async startRace(difficulty: number): Promise<void> {
+        let ret = await this._client.callApi('StartRace', {
+            difficulty: difficulty
         });
 
         if (!ret.isSucc) {
             console.log(ret.err.message);
             return;
         }
-
-        cb && cb();
     }
 
-    public async startRace(): Promise<any> {
-        let ret = await this._client.callApi('StartRace', {});
+    public async endRace(winnerIdx?: number): Promise<void> {
+        let ret = await this._client.callApi('EndRace', {
+            winnerIdx: winnerIdx
+        });
 
         if (!ret.isSucc) {
             console.log(ret.err.message);
             return;
         }
-
-        return ret.res.data;
-    }
-
-    public async leaveRace(cb: Function): Promise<void> {
-        let ret = await this._client.callApi('LeaveRace', {});
-
-        if (!ret.isSucc) {
-            console.log(ret.err.message);
-            return;
-        }
-
-        cb && cb();
     }
 
     public sendClientInput(input: ClientInput): void {
