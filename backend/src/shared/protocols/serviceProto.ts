@@ -53,71 +53,72 @@ export interface ServiceType {
 }
 
 export const serviceProto: ServiceProto<ServiceType> = {
+    "version": 21,
     "services": [
         {
-            "id": 0,
+            "id": 11,
             "name": "client/ClientInput",
             "type": "msg"
         },
         {
-            "id": 1,
+            "id": 23,
             "name": "CreateRace",
             "type": "api",
             "conf": {}
         },
         {
-            "id": 2,
+            "id": 24,
             "name": "GetRaceList",
             "type": "api",
             "conf": {}
         },
         {
-            "id": 3,
+            "id": 4,
             "name": "JoinRace",
             "type": "api",
             "conf": {}
         },
         {
-            "id": 4,
+            "id": 25,
             "name": "LeaveRace",
             "type": "api",
             "conf": {}
         },
         {
-            "id": 5,
+            "id": 7,
             "name": "Login",
             "type": "api",
             "conf": {}
         },
         {
-            "id": 6,
+            "id": 26,
             "name": "ReadyRace",
             "type": "api",
             "conf": {}
         },
         {
-            "id": 7,
+            "id": 16,
             "name": "StartRace",
             "type": "api",
             "conf": {}
         },
         {
-            "id": 8,
+            "id": 27,
             "name": "server/CreatorLeave",
             "type": "msg"
         },
         {
-            "id": 9,
+            "id": 12,
             "name": "server/Frame",
             "type": "msg"
         },
         {
-            "id": 10,
+            "id": 28,
             "name": "server/NotifyReady",
             "type": "msg"
         },
         {
-            "id": 11,
+            "id": 29,
             "name": "server/RaceList",
             "type": "msg"
         }
@@ -384,14 +385,14 @@ export const serviceProto: ServiceProto<ServiceType> = {
             ],
             "properties": [
                 {
-                    "id": 0,
+                    "id": 3,
                     "name": "raceId",
                     "type": {
                         "type": "Number"
                     }
                 },
                 {
-                    "id": 1,
+                    "id": 2,
                     "name": "teamIdx",
                     "type": {
                         "type": "Number"
@@ -613,7 +614,7 @@ export const serviceProto: ServiceProto<ServiceType> = {
                     }
                 },
                 {
-                    "id": 2,
+                    "id": 3,
                     "name": "pos",
                     "type": {
                         "type": "Interface",
@@ -636,7 +637,7 @@ export const serviceProto: ServiceProto<ServiceType> = {
                     }
                 },
                 {
-                    "id": 3,
+                    "id": 2,
                     "name": "players",
                     "type": {
                         "type": "Array",
