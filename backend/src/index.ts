@@ -6,7 +6,7 @@ import { gameManager } from './game/GameManager';
 
 // 创建 TSRPC WebSocket Server
 export const server = new WsServer(serviceProto, {
-    port: 3000,
+    port: 3001,
     // Remove this to use binary mode (remove from the client too)
     json: true,
     heartbeatWaitTime: 10000,
@@ -17,7 +17,11 @@ export const server = new WsServer(serviceProto, {
 // 断开连接后退出竞赛
 server.flows.postDisconnectFlow.push(v => {
     let conn = v.conn as WsConnection<ServiceType>;
-    gameManager.leaveRace(conn);
+    gameManager.defaultRace.applyInput({
+        type: 'PlayerLeave',
+        playerId: conn.playerId!
+    })
+    gameManager.defaultRace.leaveRace(conn);
 
     return v;
 });

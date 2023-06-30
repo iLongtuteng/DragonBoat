@@ -1,4 +1,4 @@
-import { BallMove, PlayerHeart } from "../../game/GameSystem";
+import { PlayerHeart, BallMove } from "../../game/GameSystem";
 
 export interface MsgClientInput {
     inputs: ClientInput[]
