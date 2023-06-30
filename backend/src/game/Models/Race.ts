@@ -99,19 +99,19 @@ export class Race {
         let winDis = 0;
         switch (req.difficulty) {
             case 0:
-                winDis = 20;
+                winDis = gameConfig.easyDis;
                 break;
 
             case 1:
-                winDis = 40;
+                winDis = gameConfig.normalDis;
                 break;
 
             case 2:
-                winDis = 60;
+                winDis = gameConfig.hardDis;
                 break;
 
             default:
-                winDis = 20;
+                winDis = gameConfig.easyDis;
                 break;
         }
 

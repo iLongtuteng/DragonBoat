@@ -10,7 +10,7 @@ export class Boat extends Component {
 
     onLoad() {
         this.scheduleOnce(() => {
-            let state = this.node.getChildByName('Anim').getComponent(Animation).getState('Boat');
+            let state = this.node.getChildByName('FloatAnim').getComponent(Animation).getState('Float');
             state.play();
             state.setTime(Math.random() * state.duration);
         }, 0.1);

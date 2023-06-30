@@ -1,4 +1,4 @@
-import { _decorator, Button, Color, EventKeyboard, Input, input, instantiate, KeyCode, Label, Node, Prefab, Sprite, UIOpacity, Vec3 } from 'cc';
+import { _decorator, Animation, Button, EventKeyboard, Input, input, instantiate, KeyCode, Label, Node, Prefab, UIOpacity, Vec3 } from 'cc';
 import { CameraCtrl } from './CameraCtrl';
 import { World } from './World';
 import FWKComponent from '../../fwk/FWKComponent';
@@ -10,6 +10,7 @@ import { Battery } from '../prefabs/Battery';
 import { Confirm } from '../prefabs/Confirm';
 import { Team } from '../prefabs/Team';
 import { Boat } from '../prefabs/Boat';
+import { Rank } from '../prefabs/Rank';
 const { ccclass, property } = _decorator;
 
 @ccclass('Game')
@@ -26,6 +27,12 @@ export class Game extends FWKComponent {
 
     @property(Prefab)
     boatPrefab: Prefab;
+
+    @property(Prefab)
+    rankPrefab: Prefab;
+
+    @property(Node)
+    ranks: Node;
 
     @property(Prefab)
     batteryPrefab: Prefab;
@@ -57,6 +64,8 @@ export class Game extends FWKComponent {
     private _memberArr: number[] = []; // 本人所属的团队成员playerId
     private _boatMap: Map<number, Node> = new Map<number, Node>();
     private _selfBoat: Node = null;
+    private _rankMap: Map<number, Node> = new Map<number, Node>();
+    private _rankArr: any[] = [];
     private _teamNodeMap: Map<number, Node> = new Map<number, Node>();
     private _batteryMap: Map<number, Node> = new Map<number, Node>();
     private _heartState: number = 0;
@@ -97,25 +106,25 @@ export class Game extends FWKComponent {
                 this.world.getComponent(World).addBoat(boat, i);
 
                 if (gameManager.isAdviser) {
-                    // resources.load('textures/OtherBall/spriteFrame', SpriteFrame, (err, res) => {
-                    //     if (err) {
-                    //         console.log(err);
-                    //     } else {
-                    //         ball.getComponent(Sprite).spriteFrame = res;
-                    //     }
-                    // });
+                    boat.getChildByName('FloatAnim').getChildByName('RowAnim').getComponent(Animation).play('RowGreen');
                 } else {
                     if (element == this._teamIdx) {
-                        boat.getChildByName('Anim').getComponent(Sprite).color = new Color().fromHEX('#ADFF00');
+                        boat.getChildByName('FloatAnim').getChildByName('RowAnim').getComponent(Animation).play('RowRed');
                         this._selfBoat = boat;
 
                         this.camera.getComponent(CameraCtrl).boat = boat;
                         this.world.getComponent(World).setBoat(boat);
                     } else {
+                        boat.getChildByName('FloatAnim').getChildByName('RowAnim').getComponent(Animation).play('RowGreen');
                     }
                 }
 
                 this._boatMap.set(element, boat);
+
+                let rank = instantiate(this.rankPrefab);
+                rank.parent = this.ranks;
+                rank.getComponent(Rank).boat = boat;
+                this._rankMap.set(element, rank);
 
                 if (gameManager.isAdviser) {
                     let team = instantiate(this.teamPrefab);
@@ -286,12 +295,15 @@ export class Game extends FWKComponent {
 
     public onMsg_ApplySystemState(msg: FWKMsg<GameSystemState>): boolean {
         let systemState: GameSystemState = msg.data;
+        this._rankArr = [];
 
         for (let entry of this._boatMap.entries()) {
             let boat = systemState.balls.find(v => v.idx === entry[0]);
             if (!boat) {
                 entry[1].removeFromParent();
                 this._boatMap.delete(entry[0]);
+                this._rankMap.get(entry[0]).removeFromParent();
+                this._rankMap.delete(entry[0]);
                 if (gameManager.isAdviser) {
                     this._teamNodeMap.get(entry[0]).getComponent(Team).teamBtn.interactable = false;
                 }
@@ -299,11 +311,7 @@ export class Game extends FWKComponent {
                 // console.log('boat.idx: ' + boat.idx);
                 // console.log('boat.maxSpeed: ' + boat.maxSpeed);
                 //应用每条龙舟的速度
-                if (boat.result == ResultType.Pending) {
-                    entry[1].getComponent(Boat).setState(boat.maxSpeed);
-                } else {
-                    entry[1].getComponent(Boat).setState(0);
-                }
+                entry[1].getComponent(Boat).setState(boat.maxSpeed);
 
                 if (gameManager.isAdviser) {
                     if (entry[1]) {
@@ -351,6 +359,28 @@ export class Game extends FWKComponent {
                         }
                     }
                 }
+
+                this._rankArr.push({
+                    idx: boat.idx,
+                    dis: boat.pos.x
+                });
+            }
+        }
+
+        let temp = null;
+        for (let i = 0; i < this._rankArr.length - 1; i++) {
+            for (let j = 0; j < this._rankArr.length - i - 1; j++) {
+                if (this._rankArr[j].dis < this._rankArr[j + 1].dis) {
+                    temp = this._rankArr[j];
+                    this._rankArr[j] = this._rankArr[j + 1];
+                    this._rankArr[j + 1] = temp;
+                }
+            }
+        }
+
+        for (let i = 0; i < this._rankArr.length; i++) {
+            if (this._rankMap.has(this._rankArr[i].idx)) {
+                this._rankMap.get(this._rankArr[i].idx).getComponent(Rank).label.string = (i + 1).toString();
             }
         }
 
@@ -358,10 +388,11 @@ export class Game extends FWKComponent {
     }
 
     public onMsg_RaceShowResult(msg: FWKMsg<number>): boolean {
-        this.result.active = true;
+        for (let value of this._boatMap.values()) {
+            value.getComponent(Boat).setState(0);
+        }
         audioManager.stopMusic();
-        this._trainingTime = 0;
-        this._endTimer();
+        this.result.active = true;
 
         let winnerIdx: number = msg.data;
         if (winnerIdx != undefined && winnerIdx != null) {
@@ -387,6 +418,9 @@ export class Game extends FWKComponent {
         });
         window.parent.postMessage(messageStr, '*');
         console.log('end: ' + messageStr);
+
+        this._trainingTime = 0;
+        this._endTimer();
 
         return true;
     }

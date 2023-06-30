@@ -1,4 +1,4 @@
-import { _decorator, Component, instantiate, Node, Prefab, Vec3 } from 'cc';
+import { _decorator, Component, instantiate, Label, Node, Prefab, Vec3 } from 'cc';
 import { gameManager } from '../GameManager';
 import { gameConfig } from '../../shared/game/GameConfig';
 import { Flow } from '../prefabs/Flow';
@@ -8,19 +8,30 @@ const { ccclass, property } = _decorator;
 export class World extends Component {
 
     @property(Prefab)
+    signPrefab: Prefab;
+
+    @property(Node)
+    signs: Node;
+
+    @property(Prefab)
     flowPrefab: Prefab;
-
-    @property(Node)
-    startNode: Node;
-
-    @property(Node)
-    finishNode: Node;
 
     private _flowArr: Node[] = [];
 
     onLoad() {
-        this.startNode.position = new Vec3(640, 540, 0);
-        this.finishNode.position = new Vec3(640 + gameManager.winDis * gameConfig.disUnit, 540, 0);
+        let xOffset = 640;
+        do {
+            let sign = instantiate(this.signPrefab);
+            sign.position = new Vec3(xOffset, 500, 0);
+            let distance = gameManager.winDis * gameConfig.disUnit - (xOffset - 640);
+            if (distance == 0) {
+                sign.getChildByName('Label').getComponent(Label).string = 'FINISH!';
+            } else {
+                sign.getChildByName('Label').getComponent(Label).string = distance / 100 + 'm';
+            }
+            sign.parent = this.signs;
+            xOffset += gameConfig.disUnit;
+        } while (xOffset <= gameManager.winDis * gameConfig.disUnit + 640);
     }
 
     public addFlow(cb: Function): void {
@@ -41,7 +52,7 @@ export class World extends Component {
 
     public addBoat(boat: Node, index: number): void {
         boat.parent = this.node;
-        boat.position = new Vec3(640, 400 - index * 80, 0);
+        boat.position = new Vec3(640, 425 - index * 80, 0);
         boat.setSiblingIndex(2 + index * 3);
     }
 
