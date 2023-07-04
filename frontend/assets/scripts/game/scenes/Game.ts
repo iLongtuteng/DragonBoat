@@ -10,7 +10,6 @@ import { Battery } from '../prefabs/Battery';
 import { Confirm } from '../prefabs/Confirm';
 import { Team } from '../prefabs/Team';
 import { Boat } from '../prefabs/Boat';
-import { Rank } from '../prefabs/Rank';
 const { ccclass, property } = _decorator;
 
 @ccclass('Game')
@@ -105,6 +104,9 @@ export class Game extends FWKComponent {
                 let boat = instantiate(this.boatPrefab);
                 this.world.getComponent(World).addBoat(boat, i);
 
+                let rank = instantiate(this.rankPrefab);
+                rank.parent = this.ranks;
+
                 if (gameManager.isAdviser) {
                     boat.getChildByName('FloatAnim').getChildByName('RowAnim').getComponent(Animation).play('RowGreen');
                 } else {
@@ -120,10 +122,6 @@ export class Game extends FWKComponent {
                 }
 
                 this._boatMap.set(element, boat);
-
-                let rank = instantiate(this.rankPrefab);
-                rank.parent = this.ranks;
-                rank.getComponent(Rank).boat = boat;
                 this._rankMap.set(element, rank);
 
                 if (gameManager.isAdviser) {
@@ -380,7 +378,7 @@ export class Game extends FWKComponent {
 
         for (let i = 0; i < this._rankArr.length; i++) {
             if (this._rankMap.has(this._rankArr[i].idx)) {
-                this._rankMap.get(this._rankArr[i].idx).getComponent(Rank).label.string = (i + 1).toString();
+                this._rankMap.get(this._rankArr[i].idx).getChildByName('Label').getComponent(Label).string = (i + 1).toString();
             }
         }
 
@@ -436,6 +434,12 @@ export class Game extends FWKComponent {
                 }
             });
             // console.log('this._selfBoat.position: ' + this._selfBoat.position);
+        }
+
+        for (let entry of this._boatMap.entries()) {
+            if (this._rankMap.has(entry[0])) {
+                this._rankMap.get(entry[0]).position = entry[1].position;
+            }
         }
     }
 
