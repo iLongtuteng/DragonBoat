@@ -16,6 +16,7 @@ export class GameManager {
     public difficulty: number = 1;
     public winDis: number = 100;
     public teamMap: Map<number, number[]> = new Map<number, number[]>();
+    public nameMap: Map<number, string> = new Map<number, string>();
     public greenSprite: SpriteFrame = null;
     public blueSprite: SpriteFrame = null;
     private _client: BaseWsClient<ServiceType>;
@@ -46,6 +47,9 @@ export class GameManager {
             this.winDis = msg.winDis;
             for (let teamObj of msg.teamObjArr) {
                 this.teamMap.set(teamObj.teamIdx, teamObj.memberArr);
+            }
+            for (let nameObj of msg.nameObjArr) {
+                this.nameMap.set(nameObj.playerId, nameObj.patientName);
             }
             GameMsgs.send<any>(GameMsgs.Names.ReadyEnterRace);
 
@@ -105,9 +109,10 @@ export class GameManager {
         }
     }
 
-    public async joinRace(teamIdx?: number, succCb?: Function, errCb?: Function): Promise<void> {
+    public async joinRace(teamIdx?: number, patientName?: string, succCb?: Function, errCb?: Function): Promise<void> {
         let ret = await this._client.callApi('JoinRace', {
-            teamIdx: teamIdx
+            teamIdx: teamIdx,
+            patientName: patientName
         });
 
         if (!ret.isSucc) {

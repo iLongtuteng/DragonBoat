@@ -1,7 +1,8 @@
-import { TeamObj } from "../../../game/Models/Race";
+import { NameObj, TeamObj } from "../../../game/Models/Race";
 
 export interface MsgRaceInfo {
     difficulty: number,
     winDis: number,
-    teamObjArr: TeamObj[]
+    teamObjArr: TeamObj[],
+    nameObjArr: NameObj[]
 }
