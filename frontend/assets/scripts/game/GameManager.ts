@@ -29,7 +29,7 @@ export class GameManager {
             return;
         }
 
-        let hostStr = host ? 'ws://' + host + ':3001' : `ws://${location.hostname}:3001`;
+        let hostStr = host ? 'ws://' + host + ':14000' : `ws://${location.hostname}:14000`;
         this._client = new (MINIGAME ? WsClientMiniapp : WsClientBrowser)(serviceProto, {
             server: hostStr,
             json: true,
@@ -70,13 +70,23 @@ export class GameManager {
         console.log('客户端初始化成功，连接到：' + hostStr);
     }
 
+    public postDisconnect(cb: Function): void {
+        this._client.flows.postDisconnectFlow.push(v => {
+            if (!v.isManual) {
+                cb && cb();
+            }
+
+            return v;
+        });
+    }
+
     public async connect(): Promise<void> {
         if (this._client.isConnected)
             return;
 
         let resConnect = await this._client.connect();
         if (!resConnect.isSucc) {
-            await new Promise(rs => { setTimeout(rs, 2000) });
+            await new Promise(rs => { setTimeout(rs, 10000) });
             return this.connect();
         }
 
