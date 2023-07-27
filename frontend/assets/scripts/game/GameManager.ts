@@ -93,6 +93,11 @@ export class GameManager {
         console.log('连接成功');
     }
 
+    public disconnect(): void {
+        if (this._client.isConnected)
+            this._client.disconnect();
+    }
+
     public async login(): Promise<void> {
         if (this._isLogin)
             return;
@@ -109,10 +114,11 @@ export class GameManager {
         console.log('登录成功, playerId: ' + ret.res.id);
     }
 
-    public async joinRace(teamIdx?: number, patientName?: string, succCb?: Function, errCb?: Function): Promise<void> {
+    public async joinRace(teamIdx?: number, patientName?: string, playerId?: number, succCb?: Function, errCb?: Function): Promise<void> {
         let ret = await this._client.callApi('JoinRace', {
             teamIdx: teamIdx,
-            patientName: patientName
+            patientName: patientName,
+            playerId: playerId
         });
 
         if (!ret.isSucc) {

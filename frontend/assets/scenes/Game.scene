@@ -3291,6 +3291,10 @@
     "endBtn": {
       "__id__": 49
     },
+    "warnPrefab": {
+      "__uuid__": "238c1997-707f-4a93-9d44-4ac8e8838539",
+      "__expectedType__": "cc.Prefab"
+    },
     "_id": "263B/JvrVO1JqTAGeBFSxC"
   },
   {
