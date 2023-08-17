@@ -91,7 +91,7 @@ export class Game extends FWKComponent {
             setTimeout(async () => {
                 await gameManager.connect();
 
-                gameManager.joinRace(undefined, undefined, gameManager.selfPlayerId, () => { }, (err) => {
+                gameManager.joinRace(gameManager.isAdviser, gameManager.selfPlayerId, undefined, undefined, () => { }, (err) => {
                     let warn = instantiate(this.warnPrefab);
                     warn.parent = this.node;
                     warn.getComponent(Warn).label.string = err;
@@ -127,11 +127,22 @@ export class Game extends FWKComponent {
             }
         }
 
+        let temp = null;
+        for (let i = 0; i < this._teamArr.length - 1; i++) {
+            for (let j = 0; j < this._teamArr.length - i - 1; j++) {
+                if (this._teamArr[j] > this._teamArr[j + 1]) {
+                    temp = this._teamArr[j];
+                    this._teamArr[j] = this._teamArr[j + 1];
+                    this._teamArr[j + 1] = temp;
+                }
+            }
+        }
+
         this.world.getComponent(World).addFlow(() => {
             for (let i = 0; i < this._teamArr.length; i++) {
                 const element = this._teamArr[i];
                 let boat = instantiate(this.boatPrefab);
-                this.world.getComponent(World).addBoat(boat, i);
+                this.world.getComponent(World).addBoat(boat, i, element);
 
                 let rank = instantiate(this.rankPrefab);
                 rank.parent = this.ranks;
@@ -220,6 +231,10 @@ export class Game extends FWKComponent {
         });
 
         audioManager.playMusic();
+
+        if (gameManager.isAdviser) {
+            gameManager.enterRace();
+        }
     }
 
     onDestroy() {
@@ -368,17 +383,24 @@ export class Game extends FWKComponent {
                 this._boatMap.delete(entry[0]);
                 this._rankMap.get(entry[0]).removeFromParent();
                 this._rankMap.delete(entry[0]);
-                if (gameManager.isAdviser) {
+                if (gameManager.isAdviser && this._teamNodeMap.has(entry[0])) {
                     this._teamNodeMap.get(entry[0]).getComponent(Team).teamBtn.interactable = false;
                 }
             } else {
                 // console.log('boat.idx: ' + boat.idx);
                 // console.log('boat.maxSpeed: ' + boat.maxSpeed);
                 //应用每条龙舟的速度
-                entry[1].getComponent(Boat).setState(boat.maxSpeed);
+                if (boat.isConn) {
+                    entry[1].getComponent(Boat).setState(boat.maxSpeed);
+                } else {
+                    entry[1].getComponent(Boat).setState(0);
+                    if (gameManager.isAdviser && this._teamNodeMap.has(entry[0])) {
+                        this._teamNodeMap.get(entry[0]).getComponent(Team).teamBtn.interactable = false;
+                    }
+                }
 
                 if (gameManager.isAdviser) {
-                    if (entry[1]) {
+                    if (boat.isConn && entry[1]) {
                         entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
                     }
 
@@ -396,8 +418,16 @@ export class Game extends FWKComponent {
                     }
                 } else {
                     if (boat.idx == this._teamIdx) { //如果是自己的团队
-                        if (!this._isLeader) { //如果自己不是队长，则更新该龙舟位置
-                            if (entry[1]) {
+                        if (this._isLeader) { //如果自己是队长，则发送位置
+                            gameManager.sendClientInput({
+                                type: 'BallMove',
+                                pos: {
+                                    x: this._selfBoat.position.x,
+                                    y: this._selfBoat.position.y,
+                                }
+                            });
+                        } else { //如果自己不是队长，则更新该龙舟位置
+                            if (boat.isConn && entry[1]) {
                                 entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
                             }
                         }
@@ -413,12 +443,12 @@ export class Game extends FWKComponent {
                             }
                         }
 
-                        if (boat.result == ResultType.Win) {
+                        if (this._isLeader && boat.result == ResultType.Win) {
                             gameManager.endRace(this._teamIdx);
                         }
                     } else { //如果不是自己的团队
                         //更新该龙舟位置
-                        if (entry[1]) {
+                        if (boat.isConn && entry[1]) {
                             entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
                         }
                     }
@@ -443,8 +473,27 @@ export class Game extends FWKComponent {
         }
 
         for (let i = 0; i < this._rankArr.length; i++) {
+            let fix = '';
+            switch (i) {
+                case 0:
+                    fix = 'st';
+                    break;
+
+                case 1:
+                    fix = 'nd';
+                    break;
+
+                case 2:
+                    fix = 'rd';
+                    break;
+
+                default:
+                    fix = 'th';
+                    break;
+            }
+
             if (this._rankMap.has(this._rankArr[i].idx)) {
-                this._rankMap.get(this._rankArr[i].idx).getChildByName('Label').getComponent(Label).string = (i + 1).toString();
+                this._rankMap.get(this._rankArr[i].idx).getChildByName('Label').getComponent(Label).string = (i + 1).toString() + fix;
             }
         }
 
@@ -452,7 +501,7 @@ export class Game extends FWKComponent {
     }
 
     public onMsg_RaceShowResult(msg: FWKMsg<number>): boolean {
-        gameManager.disconnect();
+        // gameManager.disconnect();
         for (let value of this._boatMap.values()) {
             value.getComponent(Boat).setState(0);
         }
@@ -492,16 +541,16 @@ export class Game extends FWKComponent {
 
     update(deltaTime: number) {
         //如果自己是队长，则发送位置
-        if (this._isLeader) {
-            gameManager.sendClientInput({
-                type: 'BallMove',
-                pos: {
-                    x: this._selfBoat.position.x,
-                    y: this._selfBoat.position.y,
-                }
-            });
-            // console.log('this._selfBoat.position: ' + this._selfBoat.position);
-        }
+        // if (this._isLeader) {
+        //     gameManager.sendClientInput({
+        //         type: 'BallMove',
+        //         pos: {
+        //             x: this._selfBoat.position.x,
+        //             y: this._selfBoat.position.y,
+        //         }
+        //     });
+        //     // console.log('this._selfBoat.position: ' + this._selfBoat.position);
+        // }
 
         for (let entry of this._boatMap.entries()) {
             if (this._rankMap.has(entry[0])) {
