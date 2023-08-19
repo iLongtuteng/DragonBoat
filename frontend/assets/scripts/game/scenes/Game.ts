@@ -77,6 +77,7 @@ export class Game extends FWKComponent {
     private _heartState: number = 0;
     private _isLeader: boolean = false;
     private _trainingTime: number = 0;
+    private _connCount: number = 0;
 
     async onLoad() {
         window.addEventListener('message', this._onMessage.bind(this));
@@ -308,6 +309,11 @@ export class Game extends FWKComponent {
         if (this._trainingTime >= 600 && gameManager.isAdviser) {
             gameManager.endRace();
         }
+
+        this._connCount++;
+        if (this._connCount >= 3) {
+            console.log('连接已断开');
+        }
     }
 
     private _getTimeStr(time: number): string {
@@ -373,6 +379,8 @@ export class Game extends FWKComponent {
     }
 
     public onMsg_ApplySystemState(msg: FWKMsg<GameSystemState>): boolean {
+        this._connCount = 0;
+
         let systemState: GameSystemState = msg.data;
         this._rankArr = [];
 
@@ -400,7 +408,7 @@ export class Game extends FWKComponent {
                 }
 
                 if (gameManager.isAdviser) {
-                    if (boat.isConn && entry[1]) {
+                    if (boat.isConn && entry[1] && boat.pos.x != 0 && boat.pos.y != 0) {
                         entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
                     }
 
@@ -427,7 +435,7 @@ export class Game extends FWKComponent {
                                 }
                             });
                         } else { //如果自己不是队长，则更新该龙舟位置
-                            if (boat.isConn && entry[1]) {
+                            if (boat.isConn && entry[1] && boat.pos.x != 0 && boat.pos.y != 0) {
                                 entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
                             }
                         }
@@ -448,7 +456,7 @@ export class Game extends FWKComponent {
                         }
                     } else { //如果不是自己的团队
                         //更新该龙舟位置
-                        if (boat.isConn && entry[1]) {
+                        if (boat.isConn && entry[1] && boat.pos.x != 0 && boat.pos.y != 0) {
                             entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
                         }
                     }
