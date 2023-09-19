@@ -11,6 +11,7 @@ import { Confirm } from '../prefabs/Confirm';
 import { Team } from '../prefabs/Team';
 import { Boat } from '../prefabs/Boat';
 import { Warn } from '../prefabs/Warn';
+import { gameConfig } from '../../shared/game/GameConfig';
 const { ccclass, property } = _decorator;
 
 @ccclass('Game')
@@ -33,6 +34,12 @@ export class Game extends FWKComponent {
 
     @property(Node)
     ranks: Node;
+
+    @property(Prefab)
+    iconPrefab: Prefab;
+
+    @property(Node)
+    progress: Node;
 
     @property(ScrollView)
     batteryView: ScrollView;
@@ -58,6 +65,9 @@ export class Game extends FWKComponent {
     @property(Label)
     timeLbl: Label;
 
+    @property(Label)
+    skipLbl: Label;
+
     @property(Button)
     endBtn: Button;
 
@@ -72,11 +82,13 @@ export class Game extends FWKComponent {
     private _selfBoat: Node = null;
     private _rankMap: Map<number, Node> = new Map<number, Node>();
     private _rankArr: any[] = [];
+    private _iconMap: Map<number, Node> = new Map<number, Node>();
     private _teamNodeMap: Map<number, Node> = new Map<number, Node>();
     private _batteryMap: Map<number, Node> = new Map<number, Node>();
     private _heartState: number = 0;
     private _isLeader: boolean = false;
     private _trainingTime: number = 0;
+    private _skipTime: number = 3;
     private _connCount: number = 0;
 
     async onLoad() {
@@ -145,9 +157,6 @@ export class Game extends FWKComponent {
                 let boat = instantiate(this.boatPrefab);
                 this.world.getComponent(World).addBoat(boat, i, element);
 
-                let rank = instantiate(this.rankPrefab);
-                rank.parent = this.ranks;
-
                 if (gameManager.isAdviser) {
                     boat.getChildByName('FloatAnim').getChildByName('RowAnim').getComponent(Animation).play('RowGreen');
                 } else {
@@ -163,7 +172,15 @@ export class Game extends FWKComponent {
                 }
 
                 this._boatMap.set(element, boat);
+
+                let rank = instantiate(this.rankPrefab);
+                rank.parent = this.ranks;
                 this._rankMap.set(element, rank);
+
+                let icon = instantiate(this.iconPrefab);
+                icon.parent = this.progress;
+                icon.getChildByName('Label').getComponent(Label).string = (element + 1).toString();
+                this._iconMap.set(element, icon);
 
                 if (gameManager.isAdviser) {
                     let team = instantiate(this.teamPrefab);
@@ -410,6 +427,7 @@ export class Game extends FWKComponent {
                 if (gameManager.isAdviser) {
                     if (boat.isConn && entry[1] && boat.pos.x != 0 && boat.pos.y != 0) {
                         entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
+                        this._iconMap.get(entry[0]).position = new Vec3((boat.pos.x - 640) * 600 / (gameManager.winDis * gameConfig.disUnit), 0, 0);
                     }
 
                     if (boat.idx == this._choosenIdx) {
@@ -434,9 +452,11 @@ export class Game extends FWKComponent {
                                     y: this._selfBoat.position.y,
                                 }
                             });
+                            this._iconMap.get(entry[0]).position = new Vec3((this._selfBoat.position.x - 640) * 600 / (gameManager.winDis * gameConfig.disUnit), 0, 0);
                         } else { //如果自己不是队长，则更新该龙舟位置
                             if (boat.isConn && entry[1] && boat.pos.x != 0 && boat.pos.y != 0) {
                                 entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
+                                this._iconMap.get(entry[0]).position = new Vec3((boat.pos.x - 640) * 600 / (gameManager.winDis * gameConfig.disUnit), 0, 0);
                             }
                         }
 
@@ -458,6 +478,7 @@ export class Game extends FWKComponent {
                         //更新该龙舟位置
                         if (boat.isConn && entry[1] && boat.pos.x != 0 && boat.pos.y != 0) {
                             entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
+                            this._iconMap.get(entry[0]).position = new Vec3((boat.pos.x - 640) * 600 / (gameManager.winDis * gameConfig.disUnit), 0, 0);
                         }
                     }
                 }
@@ -533,18 +554,37 @@ export class Game extends FWKComponent {
             this.result.getChildByName('Label').getComponent(Label).string = '训练结束';
         }
 
-        const messageStr = JSON.stringify({
-            type: 'end',
-            save_data: this._trainingTime >= 90,
-            games: []
-        });
-        window.parent.postMessage(messageStr, '*');
-        console.log('end: ' + messageStr);
-
-        this._trainingTime = 0;
-        this._endTimer();
+        this._startSkip();
 
         return true;
+    }
+
+    private _startSkip(): void {
+        this._skipCallback();
+        this.schedule(this._skipCallback, 1);
+    }
+
+    private _endSkip(): void {
+        this.unschedule(this._skipCallback);
+    }
+
+    private _skipCallback(): void {
+        this.skipLbl.string = this._skipTime.toString() + '秒后跳转';
+        if (this._skipTime <= 0) {
+            const messageStr = JSON.stringify({
+                type: 'end',
+                save_data: this._trainingTime >= 90,
+                games: []
+            });
+            window.parent.postMessage(messageStr, '*');
+            console.log('end: ' + messageStr);
+
+            this._trainingTime = 0;
+            this._endTimer();
+            this._endSkip();
+        }
+
+        this._skipTime--;
     }
 
     update(deltaTime: number) {
