@@ -1,4 +1,4 @@
-import { _decorator, Animation, Button, EventKeyboard, Input, input, instantiate, KeyCode, Label, Node, Prefab, UIOpacity, Vec3 } from 'cc';
+import { _decorator, Animation, Button, EventKeyboard, Input, input, instantiate, KeyCode, Label, Node, Prefab, ScrollView, UIOpacity, UITransform, Vec3 } from 'cc';
 import { CameraCtrl } from './CameraCtrl';
 import { World } from './World';
 import FWKComponent from '../../fwk/FWKComponent';
@@ -10,7 +10,8 @@ import { Battery } from '../prefabs/Battery';
 import { Confirm } from '../prefabs/Confirm';
 import { Team } from '../prefabs/Team';
 import { Boat } from '../prefabs/Boat';
-import { Rank } from '../prefabs/Rank';
+import { Warn } from '../prefabs/Warn';
+import { gameConfig } from '../../shared/game/GameConfig';
 const { ccclass, property } = _decorator;
 
 @ccclass('Game')
@@ -35,6 +36,15 @@ export class Game extends FWKComponent {
     ranks: Node;
 
     @property(Prefab)
+    iconPrefab: Prefab;
+
+    @property(Node)
+    progress: Node;
+
+    @property(ScrollView)
+    batteryView: ScrollView;
+
+    @property(Prefab)
     batteryPrefab: Prefab;
 
     @property(Node)
@@ -55,8 +65,14 @@ export class Game extends FWKComponent {
     @property(Label)
     timeLbl: Label;
 
+    @property(Label)
+    skipLbl: Label;
+
     @property(Button)
     endBtn: Button;
+
+    @property(Prefab)
+    warnPrefab: Prefab;
 
     private _teamArr: number[] = []; // 加入竞赛的全部团队索引
     private _teamIdx: number = -1; // 本人所属的团队索引
@@ -66,16 +82,41 @@ export class Game extends FWKComponent {
     private _selfBoat: Node = null;
     private _rankMap: Map<number, Node> = new Map<number, Node>();
     private _rankArr: any[] = [];
+    private _iconMap: Map<number, Node> = new Map<number, Node>();
     private _teamNodeMap: Map<number, Node> = new Map<number, Node>();
     private _batteryMap: Map<number, Node> = new Map<number, Node>();
     private _heartState: number = 0;
     private _isLeader: boolean = false;
     private _trainingTime: number = 0;
+    private _skipTime: number = 3;
+    private _connCount: number = 0;
 
     async onLoad() {
         window.addEventListener('message', this._onMessage.bind(this));
         input.on(Input.EventType.KEY_UP, this._onKeyUp, this);
         this._startTimer();
+
+        gameManager.postDisconnect(() => {
+            let warn = instantiate(this.warnPrefab);
+            warn.parent = this.node;
+            warn.getComponent(Warn).label.string = '断线重连';
+            console.log('意外断线, 100毫秒后重连');
+            setTimeout(async () => {
+                await gameManager.connect();
+
+                gameManager.joinRace(gameManager.isAdviser, gameManager.selfPlayerId, undefined, undefined, () => { }, (err) => {
+                    let warn = instantiate(this.warnPrefab);
+                    warn.parent = this.node;
+                    warn.getComponent(Warn).label.string = err;
+                });
+
+                // let res = await gameManager.connect();
+                // 重连也错误，弹出错误提示
+                // if(!res.isSucc){
+                //     alert('网络错误，连接已断开');
+                // }
+            }, 100);
+        });
 
         if (gameManager.isAdviser) {
             this.endBtn.node.active = true;
@@ -99,11 +140,22 @@ export class Game extends FWKComponent {
             }
         }
 
+        let temp = null;
+        for (let i = 0; i < this._teamArr.length - 1; i++) {
+            for (let j = 0; j < this._teamArr.length - i - 1; j++) {
+                if (this._teamArr[j] > this._teamArr[j + 1]) {
+                    temp = this._teamArr[j];
+                    this._teamArr[j] = this._teamArr[j + 1];
+                    this._teamArr[j + 1] = temp;
+                }
+            }
+        }
+
         this.world.getComponent(World).addFlow(() => {
             for (let i = 0; i < this._teamArr.length; i++) {
                 const element = this._teamArr[i];
                 let boat = instantiate(this.boatPrefab);
-                this.world.getComponent(World).addBoat(boat, i);
+                this.world.getComponent(World).addBoat(boat, i, element);
 
                 if (gameManager.isAdviser) {
                     boat.getChildByName('FloatAnim').getChildByName('RowAnim').getComponent(Animation).play('RowGreen');
@@ -123,8 +175,12 @@ export class Game extends FWKComponent {
 
                 let rank = instantiate(this.rankPrefab);
                 rank.parent = this.ranks;
-                rank.getComponent(Rank).boat = boat;
                 this._rankMap.set(element, rank);
+
+                let icon = instantiate(this.iconPrefab);
+                icon.parent = this.progress;
+                icon.getChildByName('Label').getComponent(Label).string = (element + 1).toString();
+                this._iconMap.set(element, icon);
 
                 if (gameManager.isAdviser) {
                     let team = instantiate(this.teamPrefab);
@@ -152,21 +208,39 @@ export class Game extends FWKComponent {
                 }
             }
 
+            // for (let i = 0; i < 20; i++) {
+            //     batteryArr.push(i);
+            // }
+
             for (let i = 0; i < batteryArr.length; i++) {
                 const element = batteryArr[i];
                 let battery = instantiate(this.batteryPrefab);
                 battery.parent = this.batteries;
+                battery.getComponent(Battery).label.string = gameManager.nameMap.get(element);
+                // battery.getComponent(Battery).label.string = '张三三';
+
+                let posY = (batteryArr.length - 1 - i) * 40;
 
                 if (i == 0) {
-                    battery.position = new Vec3(0, (batteryArr.length - 1) * 50 + 6, 0);
+                    battery.position = new Vec3(0, posY, 0);
+                    battery.scale = new Vec3(0.8, 0.8, 1);
+                    if (posY + 44 >= 560) {
+                        this.batteries.getComponent(UITransform).height = posY + 44;
+                    }
                 } else {
-                    battery.position = new Vec3(30, (batteryArr.length - 1 - i) * 50, 0);
-                    battery.scale = new Vec3(0.75, 0.75, 1);
+                    battery.position = new Vec3(44, posY, 0);
+                    battery.scale = new Vec3(0.6, 0.6, 1);
                 }
 
                 this._batteryMap.set(element, battery);
             }
+
+            this.batteryView.scrollToTop();
+            // console.log('height: ' + this.batteries.getComponent(UITransform).height);
+            // console.log('position: ' + this.batteries.position);
         }
+
+        // this._refreshBattery(0);
 
         this._heartState = 0;
         gameManager.sendClientInput({
@@ -175,6 +249,10 @@ export class Game extends FWKComponent {
         });
 
         audioManager.playMusic();
+
+        if (gameManager.isAdviser) {
+            gameManager.enterRace();
+        }
     }
 
     onDestroy() {
@@ -248,6 +326,11 @@ export class Game extends FWKComponent {
         if (this._trainingTime >= 600 && gameManager.isAdviser) {
             gameManager.endRace();
         }
+
+        this._connCount++;
+        if (this._connCount >= 3) {
+            console.log('连接已断开');
+        }
     }
 
     private _getTimeStr(time: number): string {
@@ -280,20 +363,41 @@ export class Game extends FWKComponent {
     }
 
     private _refreshBattery(key: number): void {
+        this.batteries.getComponent(UITransform).height = 559;
         this.batteries.removeAllChildren();
         this._batteryMap.clear();
 
+        // let batteryArr: number[] = [];
+        // for (let i = 0; i < 20; i++) {
+        //     batteryArr.push(i);
+        // }
+
+        // for (let i = 0; i < batteryArr.length; i++) {
+        //     const element = batteryArr[i];
         for (let i = 0; i < gameManager.teamMap.get(key).length; i++) {
             const element = gameManager.teamMap.get(key)[i];
             let battery = instantiate(this.batteryPrefab);
             battery.parent = this.batteries;
-            battery.position = new Vec3(30, (gameManager.teamMap.get(key).length - 1 - i) * 50, 0);
-            battery.scale = new Vec3(0.75, 0.75, 1);
+            battery.getComponent(Battery).label.string = gameManager.nameMap.get(element);
+            // battery.getComponent(Battery).label.string = '张三三';
+
+            let posY = (gameManager.teamMap.get(key).length - 1 - i) * 40;
+            // let posY = (batteryArr.length - 1 - i) * 40;
+
+            if (i == 0 && posY + 34 >= 560) {
+                this.batteries.getComponent(UITransform).height = posY + 34;
+            }
+            battery.position = new Vec3(44, posY, 0);
+            battery.scale = new Vec3(0.6, 0.6, 1);
             this._batteryMap.set(element, battery);
         }
+
+        this.batteryView.scrollToTop();
     }
 
     public onMsg_ApplySystemState(msg: FWKMsg<GameSystemState>): boolean {
+        this._connCount = 0;
+
         let systemState: GameSystemState = msg.data;
         this._rankArr = [];
 
@@ -304,18 +408,26 @@ export class Game extends FWKComponent {
                 this._boatMap.delete(entry[0]);
                 this._rankMap.get(entry[0]).removeFromParent();
                 this._rankMap.delete(entry[0]);
-                if (gameManager.isAdviser) {
+                if (gameManager.isAdviser && this._teamNodeMap.has(entry[0])) {
                     this._teamNodeMap.get(entry[0]).getComponent(Team).teamBtn.interactable = false;
                 }
             } else {
                 // console.log('boat.idx: ' + boat.idx);
                 // console.log('boat.maxSpeed: ' + boat.maxSpeed);
                 //应用每条龙舟的速度
-                entry[1].getComponent(Boat).setState(boat.maxSpeed);
+                if (boat.isConn) {
+                    entry[1].getComponent(Boat).setState(boat.maxSpeed);
+                } else {
+                    entry[1].getComponent(Boat).setState(0);
+                    if (gameManager.isAdviser && this._teamNodeMap.has(entry[0])) {
+                        this._teamNodeMap.get(entry[0]).getComponent(Team).teamBtn.interactable = false;
+                    }
+                }
 
                 if (gameManager.isAdviser) {
-                    if (entry[1]) {
+                    if (boat.isConn && entry[1] && boat.pos.x != 0 && boat.pos.y != 0) {
                         entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
+                        this._iconMap.get(entry[0]).position = new Vec3((boat.pos.x - 640) * 600 / (gameManager.winDis * gameConfig.disUnit), 0, 0);
                     }
 
                     if (boat.idx == this._choosenIdx) {
@@ -332,9 +444,19 @@ export class Game extends FWKComponent {
                     }
                 } else {
                     if (boat.idx == this._teamIdx) { //如果是自己的团队
-                        if (!this._isLeader) { //如果自己不是队长，则更新该龙舟位置
-                            if (entry[1]) {
+                        if (this._isLeader) { //如果自己是队长，则发送位置
+                            gameManager.sendClientInput({
+                                type: 'BallMove',
+                                pos: {
+                                    x: this._selfBoat.position.x,
+                                    y: this._selfBoat.position.y,
+                                }
+                            });
+                            this._iconMap.get(entry[0]).position = new Vec3((this._selfBoat.position.x - 640) * 600 / (gameManager.winDis * gameConfig.disUnit), 0, 0);
+                        } else { //如果自己不是队长，则更新该龙舟位置
+                            if (boat.isConn && entry[1] && boat.pos.x != 0 && boat.pos.y != 0) {
                                 entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
+                                this._iconMap.get(entry[0]).position = new Vec3((boat.pos.x - 640) * 600 / (gameManager.winDis * gameConfig.disUnit), 0, 0);
                             }
                         }
 
@@ -349,13 +471,14 @@ export class Game extends FWKComponent {
                             }
                         }
 
-                        if (boat.result == ResultType.Win) {
+                        if (this._isLeader && boat.result == ResultType.Win) {
                             gameManager.endRace(this._teamIdx);
                         }
                     } else { //如果不是自己的团队
                         //更新该龙舟位置
-                        if (entry[1]) {
+                        if (boat.isConn && entry[1] && boat.pos.x != 0 && boat.pos.y != 0) {
                             entry[1].position = new Vec3(boat.pos.x, boat.pos.y, 0);
+                            this._iconMap.get(entry[0]).position = new Vec3((boat.pos.x - 640) * 600 / (gameManager.winDis * gameConfig.disUnit), 0, 0);
                         }
                     }
                 }
@@ -379,8 +502,27 @@ export class Game extends FWKComponent {
         }
 
         for (let i = 0; i < this._rankArr.length; i++) {
+            let fix = '';
+            switch (i) {
+                case 0:
+                    fix = 'st';
+                    break;
+
+                case 1:
+                    fix = 'nd';
+                    break;
+
+                case 2:
+                    fix = 'rd';
+                    break;
+
+                default:
+                    fix = 'th';
+                    break;
+            }
+
             if (this._rankMap.has(this._rankArr[i].idx)) {
-                this._rankMap.get(this._rankArr[i].idx).getComponent(Rank).label.string = (i + 1).toString();
+                this._rankMap.get(this._rankArr[i].idx).getChildByName('Label').getComponent(Label).string = (i + 1).toString() + fix;
             }
         }
 
@@ -388,6 +530,7 @@ export class Game extends FWKComponent {
     }
 
     public onMsg_RaceShowResult(msg: FWKMsg<number>): boolean {
+        // gameManager.disconnect();
         for (let value of this._boatMap.values()) {
             value.getComponent(Boat).setState(0);
         }
@@ -411,31 +554,56 @@ export class Game extends FWKComponent {
             this.result.getChildByName('Label').getComponent(Label).string = '训练结束';
         }
 
-        const messageStr = JSON.stringify({
-            type: 'end',
-            save_data: this._trainingTime >= 90,
-            games: []
-        });
-        window.parent.postMessage(messageStr, '*');
-        console.log('end: ' + messageStr);
-
-        this._trainingTime = 0;
-        this._endTimer();
+        this._startSkip();
 
         return true;
     }
 
+    private _startSkip(): void {
+        this._skipCallback();
+        this.schedule(this._skipCallback, 1);
+    }
+
+    private _endSkip(): void {
+        this.unschedule(this._skipCallback);
+    }
+
+    private _skipCallback(): void {
+        this.skipLbl.string = this._skipTime.toString() + '秒后跳转';
+        if (this._skipTime <= 0) {
+            const messageStr = JSON.stringify({
+                type: 'end',
+                save_data: this._trainingTime >= 90,
+                games: []
+            });
+            window.parent.postMessage(messageStr, '*');
+            console.log('end: ' + messageStr);
+
+            this._trainingTime = 0;
+            this._endTimer();
+            this._endSkip();
+        }
+
+        this._skipTime--;
+    }
+
     update(deltaTime: number) {
         //如果自己是队长，则发送位置
-        if (this._isLeader) {
-            gameManager.sendClientInput({
-                type: 'BallMove',
-                pos: {
-                    x: this._selfBoat.position.x,
-                    y: this._selfBoat.position.y,
-                }
-            });
-            // console.log('this._selfBoat.position: ' + this._selfBoat.position);
+        // if (this._isLeader) {
+        //     gameManager.sendClientInput({
+        //         type: 'BallMove',
+        //         pos: {
+        //             x: this._selfBoat.position.x,
+        //             y: this._selfBoat.position.y,
+        //         }
+        //     });
+        //     // console.log('this._selfBoat.position: ' + this._selfBoat.position);
+        // }
+
+        for (let entry of this._boatMap.entries()) {
+            if (this._rankMap.has(entry[0])) {
+                this._rankMap.get(entry[0]).position = entry[1].position;
+            }
         }
     }
 
