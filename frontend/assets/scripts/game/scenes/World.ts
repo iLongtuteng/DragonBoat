@@ -2,6 +2,7 @@ import { _decorator, Component, instantiate, Label, Node, Prefab, Vec3 } from 'c
 import { gameManager } from '../GameManager';
 import { gameConfig } from '../../shared/game/GameConfig';
 import { Flow } from '../prefabs/Flow';
+import { Boat } from '../prefabs/Boat';
 const { ccclass, property } = _decorator;
 
 @ccclass('World')
@@ -50,9 +51,10 @@ export class World extends Component {
         cb && cb();
     }
 
-    public addBoat(boat: Node, index: number): void {
+    public addBoat(boat: Node, index: number, element: number): void {
         boat.parent = this.node;
         boat.position = new Vec3(640, 425 - index * 80, 0);
+        boat.getComponent(Boat).label.string = (element + 1).toString();
         boat.setSiblingIndex(2 + index * 3);
     }
 

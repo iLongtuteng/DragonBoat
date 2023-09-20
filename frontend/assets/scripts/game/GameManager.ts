@@ -16,11 +16,11 @@ export class GameManager {
     public difficulty: number = 1;
     public winDis: number = 100;
     public teamMap: Map<number, number[]> = new Map<number, number[]>();
+    public nameMap: Map<number, string> = new Map<number, string>();
     public greenSprite: SpriteFrame = null;
     public blueSprite: SpriteFrame = null;
     private _client: BaseWsClient<ServiceType>;
     private _isInit: boolean = false;
-    private _isLogin: boolean = false;
     private _isStart: boolean = false;
 
     public initClient(host?: string): void {
@@ -28,7 +28,7 @@ export class GameManager {
             return;
         }
 
-        let hostStr = host ? 'ws://' + host + ':3001' : `ws://${location.hostname}:3001`;
+        let hostStr = host ? 'ws://' + host + ':14000' : `ws://${location.hostname}:14000`;
         this._client = new (MINIGAME ? WsClientMiniapp : WsClientBrowser)(serviceProto, {
             server: hostStr,
             json: true,
@@ -46,6 +46,9 @@ export class GameManager {
             this.winDis = msg.winDis;
             for (let teamObj of msg.teamObjArr) {
                 this.teamMap.set(teamObj.teamIdx, teamObj.memberArr);
+            }
+            for (let nameObj of msg.nameObjArr) {
+                this.nameMap.set(nameObj.playerId, nameObj.patientName);
             }
             GameMsgs.send<any>(GameMsgs.Names.ReadyEnterRace);
 
@@ -66,48 +69,40 @@ export class GameManager {
         console.log('客户端初始化成功，连接到：' + hostStr);
     }
 
+    public postDisconnect(cb: Function): void {
+        this._client.flows.postDisconnectFlow.push(v => {
+            if (!v.isManual) {
+                cb && cb();
+            }
+
+            return v;
+        });
+    }
+
     public async connect(): Promise<void> {
         if (this._client.isConnected)
             return;
 
         let resConnect = await this._client.connect();
         if (!resConnect.isSucc) {
-            await new Promise(rs => { setTimeout(rs, 2000) });
+            await new Promise(rs => { setTimeout(rs, 10000) });
             return this.connect();
         }
 
         console.log('连接成功');
     }
 
-    public async login(): Promise<void> {
-        if (this._isLogin)
-            return;
+    // public disconnect(): void {
+    //     if (this._client.isConnected)
+    //         this._client.disconnect();
+    // }
 
-        let ret = await this._client.callApi('Login', {});
-
-        if (!ret.isSucc) {
-            console.log(ret.err.message);
-            return;
-        }
-
-        this.selfPlayerId = ret.res.id;
-        this._isLogin = true;
-        console.log('登录成功, playerId: ' + ret.res.id);
-    }
-
-    public async updateTeams(teamArr: number[]): Promise<void> {
-        let ret = await this._client.callApi('UpdateTeams', {
-            teamArr: teamArr
-        })
-
-        if (!ret.isSucc) {
-            console.log(ret.err.message);
-        }
-    }
-
-    public async joinRace(teamIdx?: number, succCb?: Function, errCb?: Function): Promise<void> {
+    public async joinRace(isAdviser: boolean, playerId: number, teamIdx?: number, patientName?: string, succCb?: Function, errCb?: Function): Promise<void> {
         let ret = await this._client.callApi('JoinRace', {
-            teamIdx: teamIdx
+            isAdviser: isAdviser,
+            playerId: playerId,
+            teamIdx: teamIdx,
+            patientName: patientName
         });
 
         if (!ret.isSucc) {
@@ -116,12 +111,21 @@ export class GameManager {
         }
 
         succCb && succCb();
+        console.log('加入成功, playerId: ' + this.selfPlayerId);
     }
 
     public async startRace(difficulty: number): Promise<void> {
         let ret = await this._client.callApi('StartRace', {
             difficulty: difficulty
         });
+
+        if (!ret.isSucc) {
+            console.log(ret.err.message);
+        }
+    }
+
+    public async enterRace(): Promise<void> {
+        let ret = await this._client.callApi('EnterRace', {});
 
         if (!ret.isSucc) {
             console.log(ret.err.message);

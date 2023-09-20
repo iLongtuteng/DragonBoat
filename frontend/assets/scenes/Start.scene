@@ -543,7 +543,7 @@
         "__id__": 39
       }
     ],
-    "_active": true,
+    "_active": false,
     "_components": [
       {
         "__id__": 47
@@ -3227,6 +3227,10 @@
     },
     "_enabled": true,
     "__prefab": null,
+    "games": {
+      "__uuid__": "f6c3a226-7e35-4d58-8fae-6a59e60558ae",
+      "__expectedType__": "cc.JsonAsset"
+    },
     "adviserView": {
       "__id__": 14
     },

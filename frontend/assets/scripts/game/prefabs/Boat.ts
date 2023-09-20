@@ -1,8 +1,11 @@
-import { _decorator, Animation, Component, Vec3 } from 'cc';
+import { _decorator, Animation, Component, Label, Vec3 } from 'cc';
 const { ccclass, property } = _decorator;
 
 @ccclass('Boat')
 export class Boat extends Component {
+
+    @property(Label)
+    label: Label;
 
     private _maxSpeed: number = 0;
     private _speed: number = 0;

@@ -1,10 +1,9 @@
 import { ServiceProto } from 'tsrpc-proto';
 import { MsgClientInput } from './client/MsgClientInput';
 import { ReqEndRace, ResEndRace } from './PtlEndRace';
+import { ReqEnterRace, ResEnterRace } from './PtlEnterRace';
 import { ReqJoinRace, ResJoinRace } from './PtlJoinRace';
-import { ReqLogin, ResLogin } from './PtlLogin';
 import { ReqStartRace, ResStartRace } from './PtlStartRace';
-import { ReqUpdateTeams, ResUpdateTeams } from './PtlUpdateTeams';
 import { MsgFrame } from './server/MsgFrame';
 import { MsgRaceInfo } from './server/MsgRaceInfo';
 import { MsgRaceResult } from './server/MsgRaceResult';
@@ -15,21 +14,17 @@ export interface ServiceType {
             req: ReqEndRace,
             res: ResEndRace
         },
+        "EnterRace": {
+            req: ReqEnterRace,
+            res: ResEnterRace
+        },
         "JoinRace": {
             req: ReqJoinRace,
             res: ResJoinRace
         },
-        "Login": {
-            req: ReqLogin,
-            res: ResLogin
-        },
         "StartRace": {
             req: ReqStartRace,
             res: ResStartRace
-        },
-        "UpdateTeams": {
-            req: ReqUpdateTeams,
-            res: ResUpdateTeams
         }
     },
     msg: {
@@ -41,7 +36,7 @@ export interface ServiceType {
 }
 
 export const serviceProto: ServiceProto<ServiceType> = {
-    "version": 20,
+    "version": 25,
     "services": [
         {
             "id": 11,
@@ -55,26 +50,20 @@ export const serviceProto: ServiceProto<ServiceType> = {
             "conf": {}
         },
         {
+            "id": 23,
+            "name": "EnterRace",
+            "type": "api",
+            "conf": {}
+        },
+        {
             "id": 4,
             "name": "JoinRace",
             "type": "api",
             "conf": {}
         },
         {
-            "id": 7,
-            "name": "Login",
-            "type": "api",
-            "conf": {}
-        },
-        {
             "id": 16,
             "name": "StartRace",
-            "type": "api",
-            "conf": {}
-        },
-        {
-            "id": 18,
-            "name": "UpdateTeams",
             "type": "api",
             "conf": {}
         },
@@ -252,6 +241,30 @@ export const serviceProto: ServiceProto<ServiceType> = {
         "base/BaseResponse": {
             "type": "Interface"
         },
+        "PtlEnterRace/ReqEnterRace": {
+            "type": "Interface",
+            "extends": [
+                {
+                    "id": 0,
+                    "type": {
+                        "type": "Reference",
+                        "target": "base/BaseRequest"
+                    }
+                }
+            ]
+        },
+        "PtlEnterRace/ResEnterRace": {
+            "type": "Interface",
+            "extends": [
+                {
+                    "id": 0,
+                    "type": {
+                        "type": "Reference",
+                        "target": "base/BaseResponse"
+                    }
+                }
+            ]
+        },
         "PtlJoinRace/ReqJoinRace": {
             "type": "Interface",
             "extends": [
@@ -265,10 +278,32 @@ export const serviceProto: ServiceProto<ServiceType> = {
             ],
             "properties": [
                 {
+                    "id": 5,
+                    "name": "isAdviser",
+                    "type": {
+                        "type": "Boolean"
+                    }
+                },
+                {
+                    "id": 4,
+                    "name": "playerId",
+                    "type": {
+                        "type": "Number"
+                    }
+                },
+                {
                     "id": 2,
                     "name": "teamIdx",
                     "type": {
                         "type": "Number"
+                    },
+                    "optional": true
+                },
+                {
+                    "id": 3,
+                    "name": "patientName",
+                    "type": {
+                        "type": "String"
                     },
                     "optional": true
                 }
@@ -282,39 +317,6 @@ export const serviceProto: ServiceProto<ServiceType> = {
                     "type": {
                         "type": "Reference",
                         "target": "base/BaseResponse"
-                    }
-                }
-            ]
-        },
-        "PtlLogin/ReqLogin": {
-            "type": "Interface",
-            "extends": [
-                {
-                    "id": 0,
-                    "type": {
-                        "type": "Reference",
-                        "target": "base/BaseRequest"
-                    }
-                }
-            ]
-        },
-        "PtlLogin/ResLogin": {
-            "type": "Interface",
-            "extends": [
-                {
-                    "id": 0,
-                    "type": {
-                        "type": "Reference",
-                        "target": "base/BaseResponse"
-                    }
-                }
-            ],
-            "properties": [
-                {
-                    "id": 0,
-                    "name": "id",
-                    "type": {
-                        "type": "Number"
                     }
                 }
             ]
@@ -341,42 +343,6 @@ export const serviceProto: ServiceProto<ServiceType> = {
             ]
         },
         "PtlStartRace/ResStartRace": {
-            "type": "Interface",
-            "extends": [
-                {
-                    "id": 0,
-                    "type": {
-                        "type": "Reference",
-                        "target": "base/BaseResponse"
-                    }
-                }
-            ]
-        },
-        "PtlUpdateTeams/ReqUpdateTeams": {
-            "type": "Interface",
-            "extends": [
-                {
-                    "id": 0,
-                    "type": {
-                        "type": "Reference",
-                        "target": "base/BaseRequest"
-                    }
-                }
-            ],
-            "properties": [
-                {
-                    "id": 0,
-                    "name": "teamArr",
-                    "type": {
-                        "type": "Array",
-                        "elementType": {
-                            "type": "Number"
-                        }
-                    }
-                }
-            ]
-        },
-        "PtlUpdateTeams/ResUpdateTeams": {
             "type": "Interface",
             "extends": [
                 {
@@ -475,6 +441,20 @@ export const serviceProto: ServiceProto<ServiceType> = {
                         "type": "Reference",
                         "target": "../game/GameSystem/ResultType"
                     }
+                },
+                {
+                    "id": 5,
+                    "name": "stateCount",
+                    "type": {
+                        "type": "Number"
+                    }
+                },
+                {
+                    "id": 6,
+                    "name": "isConn",
+                    "type": {
+                        "type": "Boolean"
+                    }
                 }
             ]
         },
@@ -541,6 +521,17 @@ export const serviceProto: ServiceProto<ServiceType> = {
                             "target": "../../game/Models/Race/TeamObj"
                         }
                     }
+                },
+                {
+                    "id": 5,
+                    "name": "nameObjArr",
+                    "type": {
+                        "type": "Array",
+                        "elementType": {
+                            "type": "Reference",
+                            "target": "../../game/Models/Race/NameObj"
+                        }
+                    }
                 }
             ]
         },
@@ -562,6 +553,25 @@ export const serviceProto: ServiceProto<ServiceType> = {
                         "elementType": {
                             "type": "Number"
                         }
+                    }
+                }
+            ]
+        },
+        "../../game/Models/Race/NameObj": {
+            "type": "Interface",
+            "properties": [
+                {
+                    "id": 0,
+                    "name": "playerId",
+                    "type": {
+                        "type": "Number"
+                    }
+                },
+                {
+                    "id": 1,
+                    "name": "patientName",
+                    "type": {
+                        "type": "String"
                     }
                 }
             ]
